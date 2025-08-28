@@ -1,0 +1,278 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Exposure Planner — FINAL</title>
+<!-- Early JS gate to hide splash if any JS runs -->
+<script>(function(){try{document.documentElement.className+=' js';}catch(e){}})();</script>
+<style>
+  :root { --pad: 12px;}
+  * { box-sizing: border-box; }
+  body {font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; margin:0; background:#fff; color:#111;}
+  header {padding:10px 16px; border-bottom:1px solid #eee; position:sticky; top:0; background:#fff; z-index:10; display:flex; justify-content:space-between; align-items:center;}
+  h1 {font-size:18px; margin:0;}
+  .wrap {max-width:1100px; margin:0 auto; padding:16px;}
+  .card {border:1px solid #ddd; border-radius:10px; margin-bottom:16px; padding:12px;}
+  .section-header {font-weight:600; margin-bottom:8px;}
+  .row {display:flex; flex-wrap:wrap; gap:10px;}
+  .col {flex:1; min-width:160px;}
+  label {font-size:12px; display:block; margin-bottom:4px; color:#666;}
+  input, select, button {width:100%; padding:10px; border:1px solid #ccc; border-radius:8px; font-size:14px;}
+  input[type="range"]{ width:100%; }
+  button {cursor:pointer;}
+  .output-main {font-size:22px; font-weight:700; margin:8px 0;}
+  .sub {font-size:12px; color:#666; margin-top:4px;}
+  .warning {color:#b00020; margin-top:6px;}
+  .alt-grid {overflow-x:auto; margin-top:10px;}
+  table {border-collapse:collapse; font-size:14px; width:100%;}
+  th, td {border:1px solid #eee; padding:8px 10px; text-align:left; white-space:nowrap;}
+  tr.recommended {background:#f0f8ff;}
+  .modal {display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.6); justify-content:center; align-items:center;}
+  .modal-content {background:#fff; border-radius:10px; padding:16px; max-width:420px; width:92%; max-height:90%; overflow:auto;}
+  footer {text-align:center; padding:10px; font-size:12px; border-top:1px solid #eee;}
+  footer a {color:#666; text-decoration:none;}
+  .icon-btn {width:auto; padding:6px 10px; font-size:18px; line-height:1; border-radius:8px}
+  /* JS presence toggle */
+  html.js #compatGate { display:none !important; }
+  html.js #appRoot { display:block !important; }
+  .compatGate { font-family: system-ui, -apple-system, Arial; padding:24px; max-width:720px; margin:0 auto; }
+  /* EV notches */
+  .ev-notch {position:absolute; top:0; width:2px; height:10px; background:#999;}
+  .ev-notch.big {height:16px; background:#555;}
+  .ev-hit {position:absolute; top:-6px; transform:translateX(-8px); width:16px; height:24px; cursor:pointer; background:transparent;}
+  .ev-label-badge {position:absolute; top:14px; transform:translateX(-50%); font-size:10px; color:#666; background:#fff; padding:0 4px; border-radius:3px; border:1px solid #eee;}
+  @media(max-width:700px){
+    .row {flex-direction:column;}
+    .output-main {font-size:20px;}
+    .col {min-width:0;}
+  }
+</style>
+</head>
+<body>
+<div id="errorBar" style="display:none;position:sticky;top:0;z-index:9999;background:#ffefef;color:#8a0000;padding:8px 12px;font-family:system-ui,Arial;font-size:12px;border-bottom:1px solid #e3b5b5;">Error: <span id="errorMsg"></span></div>
+<div id="fileBar" style="display:none;background:#fff7e6;color:#7a4a00;padding:6px 12px;font-family:system-ui,Arial;font-size:12px;border-bottom:1px solid #ecd3a6;">Tip: Opening from disk. For best results open in a browser or via a local server.</div>
+
+<!-- Compatibility screen for non-JS viewers -->
+<div id="compatGate" class="compatGate">
+  <h2 style="margin:0 0 8px 0;">Open in a compatible browser</h2>
+  <p style="margin:6px 0 12px 0; color:#444;">This tool needs JavaScript. Some viewers (iOS Files, Edge external-file preview) block scripts.</p>
+  <ol style="margin:0 0 12px 18px; color:#444;">
+    <li>Tap <strong>Share</strong>.</li>
+    <li>Choose <strong>Open in Safari</strong> or serve from a local server.</li>
+  </ol>
+  <p><a href="#" onclick="window.location.href=window.location.href; return false;" style="display:inline-block; padding:10px 14px; border:1px solid #999; border-radius:8px; text-decoration:none; color:#111;">Try opening here</a></p>
+</div>
+
+<div id="appRoot" style="display:none;">
+<header>
+  <h1>Exposure Planner</h1>
+  <div>
+    <button id="settingsBtn" title="Settings" class="icon-btn">⋮</button>
+  </div>
+</header>
+
+<div class="wrap">
+  <!-- Gear Setup -->
+  <div class="card">
+    <div class="section-header">Gear Setup</div>
+    <div class="row">
+      <div class="col">
+        <label>Camera</label>
+        <select id="cameraSelect">
+          <!-- Static fallback options; JS will override -->
+          <option>Nikon F100</option><option>Nikon FE2</option><option>Canon AE-1</option><option>Pentax K1000</option><option>Minolta X-700</option><option>Olympus OM-1</option>
+        </select>
+      </div>
+      <div class="col">
+        <label>Lens</label>
+        <select id="lensSelect">
+          <!-- Static fallback -->
+          <option>Nikon 28-80mm f/3.5-5.6</option><option>Nikon 50mm f/1.8</option><option>Nikon 24-50mm f/3.3-4.5</option><option>Nikon 70-200mm f/2.8</option>
+        </select>
+        <div class="sub" id="kitNote"></div>
+      </div>
+      <div class="col">
+        <label>Focal length (mm)</label>
+        <input type="number" id="focalInput" value="50" min="10" max="600" step="1">
+        <div class="sub">For zooms choose current focal. Primes fixed.</div>
+      </div>
+      <div class="col">
+        <label>Film</label>
+        <select id="filmSelect">
+          <!-- Static fallback -->
+          <option>Kodak Portra 400</option><option>Kodak Tri-X 400</option><option>Fujifilm Superia 200</option><option>Ilford HP5+ 400</option><option>Cinestill 800T</option>
+        </select>
+      </div>
+    </div>
+  </div>
+
+  <!-- Scene Input -->
+  <div class="card">
+    <div class="section-header">Scene Input</div>
+    <div class="row">
+      <div class="col">
+        <label>Light Intensity (EV100)</label>
+        <input type="range" min="-4" max="16" step="0.1" id="evSlider">
+        <div id="evNotches" style="position:relative;height:28px;margin-top:6px;"></div>
+      </div>
+      <div class="col">
+        <label>EV</label>
+        <input type="number" id="evInput" value="15" step="0.1">
+      </div>
+      <div class="col">
+        <label>Lux</label>
+        <input type="number" id="luxInput" value="100000">
+        <div class="sub">Phone meters vary. Uses K=12.5.</div>
+      </div>
+    </div>
+    <label>Creative Intent</label>
+    <div class="row">
+      <button class="col intentBtn" data-intent="neutral">Neutral</button>
+      <button class="col intentBtn" data-intent="shallow">Shallow DOF</button>
+      <button class="col intentBtn" data-intent="deep">Deep DOF</button>
+      <button class="col intentBtn" data-intent="freeze">Freeze Motion</button>
+      <button class="col intentBtn" data-intent="blur">Motion Blur</button>
+      <button class="col intentBtn" data-intent="lowgrain">Low Grain</button>
+      <button class="col intentBtn" data-intent="highgrain">High Grain</button>
+    </div>
+  </div>
+
+  <!-- Outputs -->
+  <div class="card">
+    <div class="section-header">Recommended Settings</div>
+    <div id="output" class="output-main">—</div>
+    <div id="warning" class="warning"></div>
+    <div class="alt-grid">
+      <table id="altTable"><thead><tr><th>ISO</th><th>Aperture</th><th>Shutter</th></tr></thead><tbody></tbody></table>
+    </div>
+    <div style="margin-top:8px;">
+      <button id="toggleFull">Show All Alternatives</button>
+      <div id="fullAlt" style="display:none; margin-top:8px;" class="alt-grid">
+        <table id="altTableFull"><thead><tr><th>ISO</th><th>Aperture</th><th>Shutter</th></tr></thead><tbody></tbody></table>
+      </div>
+    </div>
+  </div>
+
+  <!-- Advanced -->
+  <button id="advancedToggle">Open Advanced</button>
+  <div class="card" id="advancedDrawer" style="display:none;">
+    <div class="section-header">Advanced</div>
+    <details open><summary>Depth of Field</summary>
+      <div class="row">
+        <div class="col">
+          <label>Subject distance (m)</label>
+          <input type="number" id="dofDist" value="3" step="0.1" min="0.1">
+        </div>
+        <div class="col">
+          <label>Circle of confusion (mm)</label>
+          <input type="number" id="dofCoC" value="0.03" step="0.005">
+          <div class="sub">35mm default 0.03 mm</div>
+        </div>
+      </div>
+      <div class="sub" id="dofOut">—</div>
+    </details>
+    <details><summary>Motion & Panning</summary>
+      <div class="row">
+        <div class="col">
+          <label>Subject speed</label>
+          <select id="motSpeed">
+            <option value="1.4">Walking (~1.4 m/s)</option>
+            <option value="5">Running (~5 m/s)</option>
+            <option value="8">Bicycle (~8 m/s)</option>
+            <option value="15">Fast bicycle (~15 m/s)</option>
+            <option value="27">Car city (~27 m/s)</option>
+            <option value="40">Car highway (~40 m/s)</option>
+          </select>
+        </div>
+        <div class="col">
+          <label>Distance to subject (m)</label>
+          <input type="number" id="motDist" value="10" min="0.5" step="0.5">
+        </div>
+        <div class="col">
+          <label>Direction</label>
+          <select id="motDir">
+            <option value="across">Across</option>
+            <option value="toward">Toward/Away</option>
+          </select>
+        </div>
+      </div>
+      <div class="sub" id="motOut">—</div>
+    </details>
+    <details><summary>Bracketing Helper</summary>
+      <div class="row">
+        <div class="col">
+          <label>Total span (±EV)</label>
+          <input type="number" id="brSpan" value="1" step="0.5" min="0.5">
+        </div>
+        <div class="col">
+          <label>Step size (EV)</label>
+          <select id="brStep">
+            <option>1/3</option><option>1/2</option><option selected>1</option>
+          </select>
+        </div>
+        <div class="col">
+          <label>Vary</label>
+          <select id="brParam">
+            <option value="shutter">Shutter</option>
+            <option value="aperture">Aperture</option>
+            <option value="iso">ISO</option>
+          </select>
+        </div>
+      </div>
+      <div class="sub" id="brOut">—</div>
+    </details>
+    <details><summary>Reciprocity Correction</summary>
+      <div class="sub">Auto when base shutter ≥ 1s. Film-specific approximations.</div>
+      <div class="sub" id="recipOut">—</div>
+    </details>
+    <details><summary>Push / Pull Planner</summary>
+      <div class="row">
+        <div class="col">
+          <label>Planned change (stops)</label>
+          <input type="number" id="ppStops" value="0" step="0.5">
+        </div>
+      </div>
+      <div class="sub" id="ppOut">—</div>
+    </details>
+    <details><summary>Exposure Log</summary>
+      <div class="row">
+        <button id="logAdd" class="col">Add current settings</button>
+        <button id="logExportCSV" class="col">Export CSV</button>
+        <button id="logExportJSON" class="col">Export JSON</button>
+        <button id="logClear" class="col">Clear</button>
+      </div>
+      <div class="alt-grid" style="margin-top:8px;">
+        <table id="logTable"><thead><tr><th>Time</th><th>Camera</th><th>Lens</th><th>Film</th><th>ISO</th><th>f</th><th>t</th><th>EV</th><th>Notes</th></tr></thead><tbody></tbody></table>
+      </div>
+    </details>
+  </div>
+</div>
+
+<footer>
+  <a href="#" onclick="openModal('aboutModal')">About</a>
+</footer>
+
+<!-- About Modal -->
+<div class="modal" id="aboutModal"><div class="modal-content">
+  <h3>About</h3>
+  <p>Exposure Planner<br>© 2025 Andrew Harris. Created with AI assistance.<br>All rights reserved. Not for commercial use without permission.</p>
+  <button onclick="closeModal('aboutModal')">Close</button>
+</div></div>
+
+<!-- Settings Modal -->
+<div class="modal" id="settingsModal"><div class="modal-content">
+  <h3>Settings</h3>
+  <div style="display:flex; gap:8px; margin-bottom:8px;">
+    <button id="settingsExportBtn">Export JSON</button>
+    <button id="settingsImportBtn">Import JSON</button>
+    <input type="file" id="settingsImportFile" style="display:none" accept="application/json">
+  </div>
+  <div style="font-size:12px; color:#555; margin-bottom:12px;">Exports built-in and custom gear. Import replaces current lists.</div>
+  <button onclick="closeModal('settingsModal')">Close</button>
+</div></div>
+
+<script src="planner.js" defer></script>
+
+</body>
+</html>
